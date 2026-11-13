@@ -89,6 +89,13 @@ function render(incidents) {
     if (!li) {
       li = buildRow(i);
       rows.set(i.id, li);
+    } else {
+      const time = li.querySelector('time');
+      if (time.dateTime !== i.openedAt) {
+        time.dateTime = i.openedAt;
+        time.title = i.openedAt;
+        time.textContent = localTime.format(new Date(i.openedAt));
+      }
     }
     if (li !== anchor) list.insertBefore(li, anchor); // moves only rows that are out of place
     anchor = li.nextSibling;
