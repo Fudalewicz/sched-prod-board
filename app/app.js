@@ -81,37 +81,60 @@ async function onAck(id, li, button) {
   }
 }
 
-/** R1: newest first; new rows go in at the top, existing rows are kept (not re-created). */
-function render(incidents) {
-  const sorted = [...incidents].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
-  const seen = new Set();
-  let anchor = list.firstChild;
-  for (const i of sorted) {
-    seen.add(i.id);
-    let li = rows.get(i.id);
-    if (!li) {
-      li = buildRow(i);
-      rows.set(i.id, li);
-    } else {
-      const time = li.querySelector('time');
-      if (time.dateTime !== i.openedAt) {
-        time.dateTime = i.openedAt;
-        time.title = i.openedAt;
-        time.textContent = localTime.format(new Date(i.openedAt));
-      }
-    }
-    if (li !== anchor) list.insertBefore(li, anchor); // moves only rows that are out of place
-    anchor = li.nextSibling;
+const newBar = document.querySelector('[data-testid="new-bar"]');
+/** id -> incident that arrived after the board was on screen and waits behind the "N new" bar. */
+const pending = new Map();
+
+function updateTime(li, i) {
+  const time = li.querySelector('time');
+  if (time.dateTime !== i.openedAt) {
+    time.dateTime = i.openedAt;
+    time.title = i.openedAt;
+    time.textContent = localTime.format(new Date(i.openedAt));
   }
-  for (const [id, li] of rows) {
-    if (!seen.has(id)) {
-      li.remove();
-      rows.delete(id);
-    }
-  }
-  empty.hidden = sorted.length > 0;
-  list.hidden = sorted.length === 0;
 }
+
+/** Puts incidents in at the top of the list, newest first, above the rows already on screen. */
+function insertAtTop(incidents) {
+  const sorted = [...incidents].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
+  const anchor = list.firstChild;
+  for (const i of sorted) {
+    const li = buildRow(i);
+    rows.set(i.id, li);
+    list.insertBefore(li, anchor);
+  }
+  empty.hidden = rows.size > 0;
+  list.hidden = rows.size === 0;
+}
+
+/**
+ * R1 (product's decision, step 2): the list holds still while it is on screen. Rows already shown keep their
+ * place; nothing is inserted above them or taken away. New incidents wait behind the "N new" bar until
+ * on-call clicks it. The very first answer (or an empty board) fills the list directly.
+ */
+function render(incidents) {
+  const fresh = [];
+  for (const i of incidents) {
+    const li = rows.get(i.id);
+    if (li) updateTime(li, i); // same size text, so the row does not move
+    else if (pending.has(i.id)) pending.set(i.id, i);
+    else fresh.push(i);
+  }
+  if (rows.size === 0) insertAtTop(fresh);
+  else for (const i of fresh) pending.set(i.id, i);
+  showNewBar();
+}
+
+function showNewBar() {
+  newBar.textContent = pending.size === 1 ? '1 new incident' : `${pending.size} new incidents`;
+  newBar.hidden = pending.size === 0; // its slot keeps its height, so showing it does not push the list
+}
+
+newBar.addEventListener('click', () => {
+  insertAtTop([...pending.values()]);
+  pending.clear();
+  showNewBar();
+});
 
 function showStatus(text) {
   status.textContent = text;
