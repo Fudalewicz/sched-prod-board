@@ -28,8 +28,11 @@ function el(tag, className, text) {
   return node;
 }
 
+const clockTime = new Intl.DateTimeFormat(navigator.languages, { hour: '2-digit', minute: '2-digit' });
+
 function ackedMark(at) {
-  const mark = el('span', 'acked', `acked ${localTime.format(new Date(at))}`);
+  const mark = el('span', 'acked', `✓ acked ${clockTime.format(new Date(at))}`);
+  mark.title = `acked ${localTime.format(new Date(at))} (${at})`;
   mark.dataset.testid = 'acked';
   return mark;
 }
